@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  wasmPulse:
+    image: marcinziolkowski:wasmpulse:latest  
+    build: .
+    ports:
+      - "8080:80"
+    volumes:
+      - /proc:/proc:ro  # Read-only bind mount of host /proc
