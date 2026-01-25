@@ -1,0 +1,10 @@
+{
+  "title": "WasmPulse Dashboard",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Test Metric Over Time",
+      "targets": [{ "expr": "test_metric", "refId": "A" }]
+    }
+  ]
+}

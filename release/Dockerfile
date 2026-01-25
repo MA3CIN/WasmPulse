@@ -1,8 +1,7 @@
-FROM alpine:latest
-
-LABEL description="WasmPulse platform (version alpha)"
-
-COPY measure.sh /usr/local/bin/measure.sh
-RUN chmod +x /usr/local/bin/measure.sh
-
-ENTRYPOINT ["/usr/local/bin/measure.sh"]
+# TODO -> Make this multistage, only copy compiled binary
+FROM golang:1.24.12-alpine
+WORKDIR /app
+COPY . .
+RUN go mod tidy
+RUN go build -o main .
+CMD ["./main"]
