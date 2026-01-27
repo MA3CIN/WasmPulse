@@ -1,1 +1,0 @@
-# Collect metric values

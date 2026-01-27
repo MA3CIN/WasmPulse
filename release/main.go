@@ -8,10 +8,21 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/MA3CIN/WasmPulse/release/collector"
+	"github.com/MA3CIN/WasmPulse/release/discovery"
 )
 
 func main() {
-	testMetric := promauto.NewCounter(prometheus.CounterOpts{
+	pids := discovery.DiscoverWASM()
+	fmt.Printf("Total runtimes found: %d\n", len(pids))
+
+	collector.CollectMetrics(pids)
+	serve()
+}
+
+func serve() {
+		testMetric := promauto.NewCounter(prometheus.CounterOpts{
 		Name: "test_metric",
 		Help: "A simple metric that increments every 10 seconds",
 	})
