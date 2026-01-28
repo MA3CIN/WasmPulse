@@ -9,5 +9,5 @@ Making the script executable will likely be needed. Then, with the chosen PID (1
 ```
 or via a container
 ```bash
-docker run marcinziolkowski:wasmpulse-alpha:latest <PID>
+docker run marcinziolkowski/wasmpulse-alpha:latest <PID>
 ```
