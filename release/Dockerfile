@@ -1,8 +1,18 @@
+FROM golang:1.24.12-alpine AS builder
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod tidy
+
+COPY . .
+
+RUN go build -o main .
+
 FROM alpine:latest
 
-LABEL description="WasmPulse platform (version alpha)"
+WORKDIR /app
 
-COPY measure.sh /usr/local/bin/measure.sh
-RUN chmod +x /usr/local/bin/measure.sh
+COPY --from=builder /app/main .
 
-ENTRYPOINT ["/usr/local/bin/measure.sh"]
+CMD ["./main"]

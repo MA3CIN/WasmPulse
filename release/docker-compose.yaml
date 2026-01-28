@@ -1,10 +1,24 @@
-version: '3.8'
-
 services:
-  wasmPulse:
-    image: marcinziolkowski:wasmpulse:latest  
+  wasmpulse:
+    # image: marcinziolkowski/wasmpulse:latest  
     build: .
     ports:
-      - "8080:80"
+      - "8080:8080"
+
+  prometheus:
+    image: prom/prometheus:latest
     volumes:
-      - /proc:/proc:ro  # Read-only bind mount of host /proc
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
