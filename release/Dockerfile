@@ -15,4 +15,7 @@ WORKDIR /app
 
 COPY --from=builder /app/main .
 
+# Networking capabilities for port exposure, post hardening cause host pid (see docker compose)
+# RUN setcap 'cap_net_bind_service=+ep' /main
+
 CMD ["./main"]
