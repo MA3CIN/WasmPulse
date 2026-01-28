@@ -3,8 +3,13 @@
 Analyzes resource usage of Server-side WebAssembly instances. Real-time CPU and Memory usage metrics in a Prometheus format, filling in the monitoring gap, acting as the cAdvisor for Wasm instances.
 
 # Quickstart
+To bring up just the WasmPulse container with necessary permissions, use:
 ```bash
 docker compose up --no-build -d
+```
+To bring up WasmPulse, Prometheus and Grafana already preconfigured, use:
+```bash
+curl -sL https://raw.githubusercontent.com/MA3CIN/WasmPulse/feat/docker-compose-grafana-prometheus/release/docker-compose.yaml | docker-compose -f - up -d
 ```
 
 # Release version
