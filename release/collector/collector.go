@@ -65,39 +65,40 @@ func (c *PidCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *PidCollector) Collect(ch chan<- prometheus.Metric) {
-	c.mu.RLock()
-	pidsToCheck := make([]string, len(c.pids))
-	copy(pidsToCheck, c.pids)
-	c.mu.RUnlock()
+    c.mu.Lock()
+    defer c.mu.Unlock()
 
-	for _, pidStr := range pidsToCheck {
-		pid, err := strconv.ParseInt(pidStr, 10, 32)
+    var activePids []string
+
+    for _, pidStr := range c.pids {
+        pid, err := strconv.ParseInt(pidStr, 10, 32)
+        if err != nil {
+            log.Printf("Error parsing PID '%s': %v", pidStr, err)
+            continue
+        }
+
+        proc, err := process.NewProcess(int32(pid))
+        
 		if err != nil {
-			log.Printf("Error parsing PID '%s': %v", pidStr, err)
-			continue
-		}
+            log.Printf("Process %s terminated. Removing from metrics.", pidStr)
+            c.rssGauge.Delete(prometheus.Labels{"pid": pidStr})
+            c.cpuGauge.Delete(prometheus.Labels{"pid": pidStr})
+            continue
+        }
 
-		proc, err := process.NewProcess(int32(pid))
-		if err != nil {
-			log.Printf("Could not find process with PID %d (it may have terminated): %v", pid, err)
-			continue
-		}
+		activePids = append(activePids, pidStr)
 
-		memInfo, err := proc.MemoryInfo()
-		if err != nil {
-			log.Printf("Error collecting memory info for PID %d: %v", pid, err)
-		} else {
-			c.rssGauge.With(prometheus.Labels{"pid": pidStr}).Set(float64(memInfo.RSS))
-		}
+        if memInfo, err := proc.MemoryInfo(); err == nil {
+            c.rssGauge.With(prometheus.Labels{"pid": pidStr}).Set(float64(memInfo.RSS))
+        }
 
-		cpuPercent, err := proc.CPUPercent()
-		if err != nil {
-			log.Printf("Error collecting CPU info for PID %d: %v", pid, err)
-		} else {
-			c.cpuGauge.With(prometheus.Labels{"pid": pidStr}).Set(cpuPercent)
-		}
-	}
+        if cpuPercent, err := proc.CPUPercent(); err == nil {
+            c.cpuGauge.With(prometheus.Labels{"pid": pidStr}).Set(cpuPercent)
+        }
+    }
 
-	c.rssGauge.Collect(ch)
-	c.cpuGauge.Collect(ch)
+    c.pids = activePids
+
+    c.rssGauge.Collect(ch)
+    c.cpuGauge.Collect(ch)
 }
