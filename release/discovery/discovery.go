@@ -1,58 +1,84 @@
 package discovery
 
 import (
-    "fmt"
-    "os"
-    "strconv"
-    "strings"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
 
-    "github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v3/process"
 )
 
-func init() {
-    // Check if the host's /proc directory is mounted at /host/proc (for Docker/containers)
-    if _, err := os.Stat("/host/proc"); err == nil {
-        // If it exists, set the environment variable that gopsutil uses
-        os.Setenv("HOST_PROC", "/host/proc")
-        fmt.Println("Host /proc detected. Running in Container on Host PID mode.")
-    } else {
-        fmt.Println("Running in Bare-Metal or Containerized PID mode.")
-    }
+type WasmProcessInfo struct {
+	PID         string
+	RuntimeName string
+	FileName    string
 }
 
-func DiscoverWASM() []string {
-    targets := []string{"wasmtime", "wasmedge", "wasmer", "spin", "wasmcloud", "wash"} // Todo - add more wasm runtimes!
-    pids := []string{}
+func init() {
+	// Check if the host's /proc directory is mounted at /host/proc (for Docker/containers)
+	if _, err := os.Stat("/host/proc"); err == nil {
+		os.Setenv("HOST_PROC", "/host/proc")
+		fmt.Println("[INIT] Detected '/host/proc' mount point.")
+		fmt.Println("[INIT] Mode: Containerized (Host PID Monitoring Enabled)")
+	} else {
+		fmt.Println("[INIT] No '/host/proc' mount detected.")
+		fmt.Println("[INIT] Mode: Standard (Bare Metal or Isolated Container)")
+	}
+}
 
-    procs, err := process.Processes()
-    if err != nil {
-        fmt.Printf("Critical Error: Could not retrieve process list: %v\n", err)
-        return pids
-    }
+func DiscoverWASM() []WasmProcessInfo {
+	targets := []string{"wasmtime", "wasmedge", "wasmer", "spin", "wasmcloud", "wash"} // Todo - add more wasm runtimes!
+	var foundProcesses []WasmProcessInfo
 
-    for _, p := range procs {
-        name, _ := p.Name()
-        cmdline, _ := p.Cmdline()
+	procs, err := process.Processes()
+	if err != nil {
+		fmt.Printf("Critical Error: Could not retrieve process list: %v\n", err)
+		return foundProcesses
+	}
 
-        for _, target := range targets {
-            if strings.Contains(strings.ToLower(name), target) ||
-                strings.Contains(strings.ToLower(cmdline), target) {
+	for _, p := range procs {
+		name, _ := p.Name()
+		cmdSlice, _ := p.CmdlineSlice()
+		cmdString := strings.Join(cmdSlice, " ")
 
-                // Don't add duplicate PIDs to the array
-                pidStr := strconv.Itoa(int(p.Pid))
-                isDuplicate := false
-                for _, existingPid := range pids {
-                    if existingPid == pidStr {
-                        isDuplicate = true
-                        break
-                    }
-                }
-                if !isDuplicate {
-                    fmt.Printf("[FOUND] Runtime: %-10s | PID: %-6d | Command: %s\n", target, p.Pid, cmdline)
-                    pids = append(pids, pidStr)
-                }
-            }
-        }
-    }
-    return pids
+		for _, target := range targets {
+			if strings.Contains(strings.ToLower(name), target) ||
+				strings.Contains(strings.ToLower(cmdString), target) {
+
+				// Don't add duplicate PIDs to the array
+				pidStr := strconv.Itoa(int(p.Pid))
+				isDuplicate := false
+				for _, existingPid := range foundProcesses {
+					if existingPid.PID == pidStr {
+						isDuplicate = true
+						break
+					}
+				}
+
+				if !isDuplicate {
+					// Extract .wasm filename
+					wasmFile := "unknown"
+					for _, arg := range cmdSlice {
+						if strings.HasSuffix(strings.ToLower(arg), ".wasm") {
+							parts := strings.Split(arg, string(os.PathSeparator))
+							wasmFile = parts[len(parts)-1]
+							break
+						}
+					}
+
+					runtimeDisplay := strings.ToUpper(target[:1]) + target[1:]
+
+					fmt.Printf("[FOUND] Runtime: %-10s | PID: %-6s | File: %s\n", runtimeDisplay, pidStr, wasmFile)
+
+					foundProcesses = append(foundProcesses, WasmProcessInfo{
+						PID:         pidStr,
+						RuntimeName: runtimeDisplay,
+						FileName:    wasmFile,
+					})
+				}
+			}
+		}
+	}
+	return foundProcesses
 }
