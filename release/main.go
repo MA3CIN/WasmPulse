@@ -35,8 +35,8 @@ func discoverPIDsLoop(c *collector.PidCollector) {
 	defer ticker.Stop()
 
 	for ; ; <-ticker.C {
-		pids := discovery.DiscoverWASM()
-		c.UpdatePids(pids)
+		procInfoArr := discovery.DiscoverWASM()
+		c.UpdatePids(procInfoArr)
 		fmt.Printf("[PID SCAN] Total PIDs being monitored: %d\n", c.GetPidCount())
 	}
 }

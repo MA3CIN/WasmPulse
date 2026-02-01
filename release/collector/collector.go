@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/MA3CIN/WasmPulse/release/discovery"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shirou/gopsutil/v3/process"
 )
@@ -12,43 +13,45 @@ import (
 type PidCollector struct {
 	rssGauge *prometheus.GaugeVec
 	cpuGauge *prometheus.GaugeVec
-	pids     []string
+	pids     []discovery.WasmProcessInfo
 	mu       sync.RWMutex // Mutex to protect the pids slice
 }
 
 func NewPidCollector() *PidCollector {
+	prometheus_labels := []string{"wasm_file", "runtime", "pid"}
+
 	return &PidCollector{
 		rssGauge: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "process_resident_memory_bytes",
 				Help: "Resident Set Size of a process.",
 			},
-			[]string{"pid"},
+			prometheus_labels,
 		),
 		cpuGauge: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "process_cpu_usage_percent",
 				Help: "CPU usage of a process.",
 			},
-			[]string{"pid"},
+			prometheus_labels,
 		),
-		pids: []string{},
+		pids: []discovery.WasmProcessInfo{},
 	}
 }
 
-func (c *PidCollector) UpdatePids(newPids []string) {
+func (c *PidCollector) UpdatePids(newProcs []discovery.WasmProcessInfo) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	existingPids := make(map[string]bool)
-	for _, pid := range c.pids {
-		existingPids[pid] = true
+	for _, proc := range c.pids {
+		existingPids[proc.PID] = true
 	}
 
-	for _, pid := range newPids {
-		if !existingPids[pid] {
-			log.Printf("New PID discovered: %s. Adding to monitor list.", pid)
-			c.pids = append(c.pids, pid)
+	for _, proc := range newProcs {
+		if !existingPids[proc.PID] {
+			log.Printf("New PID discovered: %s (%s - %s). Adding to monitor list.", proc.PID, proc.FileName, proc.RuntimeName)
+			c.pids = append(c.pids, proc)
 		}
 	}
 }
@@ -65,38 +68,45 @@ func (c *PidCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *PidCollector) Collect(ch chan<- prometheus.Metric) {
-	c.mu.RLock()
-	pidsToCheck := make([]string, len(c.pids))
-	copy(pidsToCheck, c.pids)
-	c.mu.RUnlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	for _, pidStr := range pidsToCheck {
-		pid, err := strconv.ParseInt(pidStr, 10, 32)
+	var activeProcs []discovery.WasmProcessInfo
+
+	for _, procInfo := range c.pids {
+		pidInt, err := strconv.ParseInt(procInfo.PID, 10, 32)
 		if err != nil {
-			log.Printf("Error parsing PID '%s': %v", pidStr, err)
+			log.Printf("Error parsing PID '%s': %v", pidInt, err)
 			continue
 		}
 
-		proc, err := process.NewProcess(int32(pid))
+		proc, err := process.NewProcess(int32(pidInt))
+
+		labels := prometheus.Labels{
+			"wasm_file": procInfo.FileName,
+			"runtime":   procInfo.RuntimeName,
+			"pid":       procInfo.PID,
+		}
+
 		if err != nil {
-			log.Printf("Could not find process with PID %d (it may have terminated): %v", pid, err)
+			log.Printf("Process %s terminated. Removing from metrics.", procInfo.PID)
+			c.rssGauge.Delete(labels)
+			c.cpuGauge.Delete(labels)
 			continue
 		}
 
-		memInfo, err := proc.MemoryInfo()
-		if err != nil {
-			log.Printf("Error collecting memory info for PID %d: %v", pid, err)
-		} else {
-			c.rssGauge.With(prometheus.Labels{"pid": pidStr}).Set(float64(memInfo.RSS))
+		activeProcs = append(activeProcs, procInfo)
+
+		if memInfo, err := proc.MemoryInfo(); err == nil {
+			c.rssGauge.With(labels).Set(float64(memInfo.RSS))
 		}
 
-		cpuPercent, err := proc.CPUPercent()
-		if err != nil {
-			log.Printf("Error collecting CPU info for PID %d: %v", pid, err)
-		} else {
-			c.cpuGauge.With(prometheus.Labels{"pid": pidStr}).Set(cpuPercent)
+		if cpuPercent, err := proc.CPUPercent(); err == nil {
+			c.cpuGauge.With(labels).Set(cpuPercent)
 		}
 	}
+
+	c.pids = activeProcs
 
 	c.rssGauge.Collect(ch)
 	c.cpuGauge.Collect(ch)

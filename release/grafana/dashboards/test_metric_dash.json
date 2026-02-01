@@ -73,7 +73,7 @@
           "datasource": { "type": "prometheus", "uid": null },
           "refId": "A",
           "expr": "process_resident_memory_bytes{pid=~\"$pid\"}",
-          "legendFormat": "PID {{pid}}",
+          "legendFormat": "{{wasm_file}} {{runtime}} {{pid}}",
           "range": true,
           "instant": false
         }
@@ -128,7 +128,7 @@
           "datasource": { "type": "prometheus", "uid": null },
           "refId": "A",
           "expr": "process_cpu_usage_percent{pid=~\"$pid\"}",
-          "legendFormat": "PID {{pid}}",
+          "legendFormat": "{{wasm_file}} {{runtime}} {{pid}}",
           "range": true,
           "instant": false
         }
