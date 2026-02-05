@@ -5,5 +5,5 @@ import (
 )
 
 func main() {
-	time.Sleep(10 * time.Minute)
+	time.Sleep(60 * time.Minute)
 }
