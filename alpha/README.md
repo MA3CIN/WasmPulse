@@ -7,7 +7,3 @@ Making the script executable will likely be needed. Then, with the chosen PID (1
 ```bash
 ./measure.sh <PID>
 ```
-or via a container
-```bash
-docker run marcinziolkowski/wasmpulse-alpha:latest <PID>
-```
